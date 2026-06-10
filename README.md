@@ -24,7 +24,26 @@ mic ──▶ Web Speech API (in-browser, live transcription)
 Each build sends the whole transcript plus the previous prototype, and asks the model
 to *evolve* it rather than start over — so the design stays stable as the call goes on.
 
-## Setup
+## Single-file version (no server)
+
+[`autoui.html`](autoui.html) is the whole app in one file — open it and go. The browser
+calls the Anthropic API directly (the API supports browser-direct access via the
+`anthropic-dangerous-direct-browser-access` header), so there is nothing to deploy.
+
+1. Open `autoui.html` in Chrome/Edge — **serve it over http(s)** for mic access
+   (`python3 -m http.server` in the repo dir works; `file://` may block the mic,
+   though typed input still works).
+2. Paste your credential into the key bar — an OAuth token (`sk-ant-oat01-…`, from
+   `claude setup-token`) or an API key (`sk-ant-api03-…`). It's stored in that
+   browser's localStorage. To bake it into the file instead, set `EMBEDDED_KEY`
+   at the top of the `<script>` — but note anyone with a copy of the file can
+   then spend your tokens.
+3. Talk.
+
+Verified end-to-end with `scripts/verify.mjs` (headless Chrome): the full pipeline
+against a mocked API, and both auth header styles against the real API.
+
+## Setup (server version)
 
 ```bash
 npm install
