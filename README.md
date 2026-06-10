@@ -24,6 +24,25 @@ mic ──▶ Web Speech API (in-browser, live transcription)
 Each build sends the whole transcript plus the previous prototype, and asks the model
 to *evolve* it rather than start over — so the design stays stable as the call goes on.
 
+## Which version can I use?
+
+| Your credential | Single-file `autoui.html` | Server (`npm start`) |
+|---|---|---|
+| API key (`sk-ant-api03-…`), org allows browser CORS | ✅ | ✅ |
+| API key, org blocks browser CORS | ❌ (CORS) | ✅ |
+| Claude Code subscription token (`sk-ant-oat01-…`) | ❌ (CORS + token is Claude-Code-gated) | ✅ |
+
+The browser-direct single-file build only works if your Anthropic **organization allows
+CORS** *and* you use an API key. Many orgs (and all subscription/`setup-token`
+credentials) block browser CORS — you'll see `"CORS requests are not allowed for this
+Organization"`. In that case, **run the server version**, which calls the API
+server-to-server and has no CORS or token-gating limitation.
+
+> Subscription tokens from `claude setup-token` are scoped to Claude Code: the server
+> automatically prepends the required Claude Code identity to satisfy that gate. Using a
+> Claude Code token outside Claude Code is a gray area under Anthropic's terms — for
+> anything beyond personal experimentation, prefer a normal API key.
+
 ## Single-file version (no server)
 
 [`autoui.html`](autoui.html) is the whole app in one file — open it and go. The browser

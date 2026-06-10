@@ -41,6 +41,17 @@ function makeClient() {
 }
 
 const client = makeClient();
+// A Claude Code OAuth token (sk-ant-oat01-…) is gated: the API only accepts
+// requests whose system prompt leads with the Claude Code identity line —
+// otherwise it returns a misleading rate_limit_error. API keys have no such
+// requirement. Detect which one we're using so we can prepend it when needed.
+const usingOAuth = Boolean(
+  !process.env.ANTHROPIC_API_KEY &&
+    (process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_AUTH_TOKEN),
+);
+const CLAUDE_CODE_IDENTITY =
+  "You are Claude Code, Anthropic's official CLI for Claude.";
+
 if (!client) {
   console.warn(
     "\n⚠️  No credentials found. Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN " +
@@ -111,7 +122,12 @@ app.post("/api/build", async (req, res) => {
       model: MODEL,
       max_tokens: 48000,
       output_config: { effort: EFFORT },
-      system: [{ type: "text", text: SYSTEM_PROMPT }],
+      system: usingOAuth
+        ? [
+            { type: "text", text: CLAUDE_CODE_IDENTITY },
+            { type: "text", text: SYSTEM_PROMPT },
+          ]
+        : [{ type: "text", text: SYSTEM_PROMPT }],
       messages: [{ role: "user", content: parts.join("\n\n") }],
     });
 
