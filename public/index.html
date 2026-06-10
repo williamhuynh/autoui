@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>autoui — talk it into existence</title>
+<style>
+  :root {
+    --bg: #101312;
+    --panel: #181c1a;
+    --panel-2: #1f2422;
+    --line: #2b322f;
+    --text: #e8ece9;
+    --muted: #8a948f;
+    --accent: #4ade80;
+    --accent-dim: #14532d;
+    --warn: #fbbf24;
+    --err: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header h1 span { color: var(--accent); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 11px; border-radius: 999px; font-size: 12px;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+    white-space: nowrap;
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.listening .dot { background: var(--err); animation: pulse 1.2s infinite; }
+  .pill.building .dot { background: var(--warn); animation: pulse .8s infinite; }
+  .pill.ready .dot { background: var(--accent); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent-dim); border-color: var(--accent); }
+  button.primary:hover { background: #166534; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  main { flex: 1; display: flex; min-height: 0; }
+  .left {
+    width: 380px; min-width: 300px; display: flex; flex-direction: column;
+    border-right: 1px solid var(--line); background: var(--panel);
+  }
+  .left .label, .right .label {
+    padding: 9px 14px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--muted); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px;
+  }
+  #transcript {
+    flex: 1; overflow-y: auto; padding: 14px; display: flex;
+    flex-direction: column; gap: 10px;
+  }
+  .seg {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px; font-size: 13.5px;
+  }
+  .seg.interim { opacity: .55; border-style: dashed; }
+  .seg .t { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+  #empty-hint { color: var(--muted); font-size: 13px; padding: 8px 4px; }
+  .composer {
+    border-top: 1px solid var(--line); padding: 10px; display: flex; gap: 8px;
+  }
+  .composer input {
+    flex: 1; font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px;
+  }
+  .composer input:focus { outline: none; border-color: var(--muted); }
+  .right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .right .label .meta { margin-left: auto; text-transform: none; letter-spacing: 0; }
+  #frame-wrap { flex: 1; position: relative; background: #0b0d0c; }
+  #preview {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; background: #fff;
+  }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    color: var(--muted); text-align: center; padding: 24px; background: var(--bg);
+  }
+  #placeholder .big { font-size: 38px; }
+  #toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #3b1d1d; border: 1px solid var(--err); color: #fecaca;
+    padding: 9px 16px; border-radius: 10px; font-size: 13px; display: none;
+    max-width: 70vw; z-index: 10;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>auto<span>ui</span></h1>
+  <span id="status" class="pill"><span class="dot"></span><span id="status-text">idle</span></span>
+  <div class="spacer"></div>
+  <button id="reset-btn" title="Forget the current prototype and start fresh">Reset</button>
+  <button id="open-btn" title="Open the current prototype in a new tab" disabled>Open ↗</button>
+  <button id="mic-btn" class="primary">🎙 Start listening</button>
+</header>
+
+<main>
+  <section class="left">
+    <div class="label">Live transcript</div>
+    <div id="transcript">
+      <div id="empty-hint">
+        Hit <b>Start listening</b> and talk about a product — describe features,
+        complain about your current tool, think out loud. The prototype on the
+        right rebuilds itself as you speak.<br><br>
+        No mic? Type lines into the box below instead.
+      </div>
+    </div>
+    <form class="composer" id="composer">
+      <input id="composer-input" placeholder="…or type what would be said" autocomplete="off">
+      <button type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="right">
+    <div class="label">
+      Prototype
+      <span class="meta pill" id="version-pill" style="display:none"><span id="version-text"></span></span>
+    </div>
+    <div id="frame-wrap">
+      <iframe id="preview" sandbox="allow-scripts allow-forms allow-modals allow-popups" title="prototype preview"></iframe>
+      <div id="placeholder">
+        <div class="big">🪄</div>
+        <div>Nothing built yet — the first version appears<br>a few seconds after you start talking.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  // ---------- state ----------
+  const segments = [];        // finalized transcript segments
+  let interim = "";           // current in-progress speech
+  let listening = false;
+  let building = false;
+  let dirty = false;          // new transcript arrived while a build was running
+  let builtThrough = 0;       // number of segments included in the last build
+  let currentHtml = "";       // last completed prototype
+  let version = 0;
+  let buildTimer = null;
+  let lastBuildStart = 0;
+
+  const SILENCE_MS = 2200;    // build after this much quiet following new speech
+  const MAX_WAIT_MS = 15000;  // ...or at most this long after new speech arrives
+
+  // ---------- dom ----------
+  const $ = (id) => document.getElementById(id);
+  const transcriptEl = $("transcript"), emptyHint = $("empty-hint");
+  const statusEl = $("status"), statusText = $("status-text");
+  const micBtn = $("mic-btn"), openBtn = $("open-btn"), resetBtn = $("reset-btn");
+  const preview = $("preview"), placeholder = $("placeholder");
+  const versionPill = $("version-pill"), versionText = $("version-text");
+  const toast = $("toast");
+
+  function setStatus(mode, text) {
+    statusEl.className = "pill " + mode;
+    statusText.textContent = text;
+  }
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.style.display = "block";
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => (toast.style.display = "none"), 6000);
+  }
+
+  // ---------- transcript rendering ----------
+  let interimEl = null;
+  function addSegment(text) {
+    text = text.trim();
+    if (!text) return;
+    segments.push(text);
+    emptyHint.style.display = "none";
+    const el = document.createElement("div");
+    el.className = "seg";
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = new Date().toLocaleTimeString();
+    const body = document.createElement("div");
+    body.textContent = text;
+    el.append(t, body);
+    transcriptEl.insertBefore(el, interimEl);
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    onTranscriptGrew();
+  }
+  function renderInterim(text) {
+    interim = text;
+    if (!interimEl) {
+      interimEl = document.createElement("div");
+      interimEl.className = "seg interim";
+      transcriptEl.appendChild(interimEl);
+    }
+    interimEl.textContent = text;
+    interimEl.style.display = text ? "" : "none";
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  // ---------- build loop ----------
+  function onTranscriptGrew() {
+    clearTimeout(buildTimer);
+    buildTimer = setTimeout(maybeBuild, SILENCE_MS);
+    // Don't let a long monologue starve the loop: force a build if it's been
+    // a while since the last one started and there's unbuilt speech.
+    if (!building && Date.now() - lastBuildStart > MAX_WAIT_MS) maybeBuild();
+  }
+
+  function maybeBuild() {
+    if (segments.length === 0 || segments.length === builtThrough) return;
+    if (building) { dirty = true; return; }
+    build();
+  }
+
+  function cleanHtml(s) {
+    let out = s.replace(/^\s*```(?:html)?\s*/i, "").replace(/```\s*$/, "");
+    const start = out.search(/<!doctype html|<html[\s>]/i);
+    if (start > 0) out = out.slice(start);
+    return out;
+  }
+
+  async function build() {
+    building = true;
+    dirty = false;
+    lastBuildStart = Date.now();
+    const snapshotLen = segments.length;
+    setStatus("building", "building v" + (version + 1) + "…");
+
+    let buffer = "";
+    let lastPaint = 0;
+    try {
+      const resp = await fetch("/api/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript: segments.join("\n"),
+          currentHtml: currentHtml || null,
+        }),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.error || ("HTTP " + resp.status));
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = "";
+      let failed = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        const events = pending.split("\n\n");
+        pending = events.pop();
+        for (const ev of events) {
+          const line = ev.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          const msg = JSON.parse(line.slice(6));
+          if (msg.type === "delta") {
+            buffer += msg.text;
+            // Progressive render: paint the partial document as it streams in.
+            const now = Date.now();
+            if (now - lastPaint > 700 && /<body[\s>]/i.test(buffer)) {
+              lastPaint = now;
+              paint(cleanHtml(buffer));
+            }
+          } else if (msg.type === "error") {
+            failed = msg.message;
+          }
+        }
+      }
+      if (failed) throw new Error(failed);
+      if (!buffer.trim()) throw new Error("Model returned an empty response.");
+
+      currentHtml = cleanHtml(buffer);
+      version += 1;
+      builtThrough = snapshotLen;
+      paint(currentHtml);
+      versionPill.style.display = "";
+      versionText.textContent = "v" + version + " · " + new Date().toLocaleTimeString();
+      openBtn.disabled = false;
+    } catch (err) {
+      showToast("Build failed: " + err.message);
+    } finally {
+      building = false;
+      setStatus(listening ? "listening" : (version ? "ready" : ""),
+                listening ? "listening" : (version ? "v" + version + " ready" : "idle"));
+      if (dirty || segments.length > builtThrough) {
+        clearTimeout(buildTimer);
+        buildTimer = setTimeout(maybeBuild, 800);
+      }
+    }
+  }
+
+  function paint(html) {
+    placeholder.style.display = "none";
+    preview.srcdoc = html;
+  }
+
+  // ---------- speech recognition ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+
+  function startListening() {
+    if (!SR) {
+      showToast("This browser has no speech recognition (try Chrome or Edge). Use the text box instead.");
+      return;
+    }
+    rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = navigator.language || "en-US";
+
+    rec.onresult = (e) => {
+      let interimText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) addSegment(r[0].transcript);
+        else interimText += r[0].transcript;
+      }
+      renderInterim(interimText);
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed") {
+        showToast("Microphone access denied. Allow the mic, or use the text box.");
+        stopListening();
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        showToast("Speech recognition error: " + e.error);
+      }
+    };
+    rec.onend = () => {
+      // Chrome stops recognition periodically; restart while we're meant to listen.
+      if (listening) { try { rec.start(); } catch {} }
+    };
+
+    try { rec.start(); } catch {}
+    listening = true;
+    micBtn.textContent = "⏸ Stop listening";
+    micBtn.classList.remove("primary");
+    setStatus("listening", "listening");
+  }
+
+  function stopListening() {
+    listening = false;
+    if (rec) { rec.onend = null; try { rec.stop(); } catch {} rec = null; }
+    renderInterim("");
+    micBtn.textContent = "🎙 Start listening";
+    micBtn.classList.add("primary");
+    setStatus(version ? "ready" : "", version ? "v" + version + " ready" : "idle");
+  }
+
+  micBtn.addEventListener("click", () => (listening ? stopListening() : startListening()));
+
+  // ---------- manual input ----------
+  $("composer").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $("composer-input");
+    addSegment(input.value);
+    input.value = "";
+  });
+
+  // ---------- misc controls ----------
+  openBtn.addEventListener("click", () => {
+    const blob = new Blob([currentHtml], { type: "text/html" });
+    window.open(URL.createObjectURL(blob), "_blank");
+  });
+  resetBtn.addEventListener("click", () => {
+    currentHtml = "";
+    builtThrough = segments.length; // keep transcript, forget the prototype
+    version = 0;
+    preview.removeAttribute("srcdoc");
+    placeholder.style.display = "flex";
+    versionPill.style.display = "none";
+    openBtn.disabled = true;
+    setStatus(listening ? "listening" : "", listening ? "listening" : "idle");
+  });
+
+  // ---------- startup ----------
+  fetch("/api/health").then((r) => r.json()).then((h) => {
+    if (!h.hasCredentials) {
+      showToast("Server has no Anthropic credentials — set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN and restart.");
+    }
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>

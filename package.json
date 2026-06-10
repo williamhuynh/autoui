@@ -1,0 +1,17 @@
+{
+  "name": "autoui",
+  "version": "0.1.0",
+  "description": "Live transcription that auto-builds a UI prototype with Claude (Fable)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "express": "^4.21.0"
+  }
+}
